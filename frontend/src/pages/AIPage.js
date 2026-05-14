@@ -17,24 +17,63 @@ const descriptions = {
   'fleet-insights': 'Comprehensive executive-level analysis of overall fleet health, KPIs, and strategic recommendations.',
 };
 
-function parseMarkdown(text) {
-  if (!text) return '';
-  // Convert markdown-like formatting to structured HTML
-  let html = text
-    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/^### (.*$)/gm, '<h4 class="ai-h4">$1</h4>')
-    .replace(/^## (.*$)/gm, '<h3 class="ai-h3">$1</h3>')
-    .replace(/^# (.*$)/gm, '<h2 class="ai-h2">$1</h2>')
-    .replace(/^---$/gm, '<hr class="ai-divider"/>')
-    .replace(/^\d+\.\s(.*$)/gm, '<li class="ai-ordered">$1</li>')
-    .replace(/^[-•]\s(.*$)/gm, '<li class="ai-bullet">$1</li>')
-    .replace(/`([^`]+)`/g, '<code class="ai-code">$1</code>')
-    .replace(/\n\n/g, '</p><p class="ai-para">')
-    .replace(/\n/g, '<br/>');
-  return `<p class="ai-para">${html}</p>`;
+// Renders structured JSON results as formatted tables/lists
+function RenderValue({ value, depth = 0 }) {
+  if (value === null || value === undefined) return <span style={{ color: '#94a3b8' }}>—</span>;
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span style={{ color: '#94a3b8' }}>(empty)</span>;
+    if (typeof value[0] === 'object') {
+      const cols = Object.keys(value[0]);
+      return (
+        <div style={{ overflowX: 'auto', marginTop: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr>
+                {cols.map((c) => (
+                  <th key={c} style={{ textAlign: 'left', padding: '8px 10px', background: '#1e293b', color: '#94a3b8', textTransform: 'uppercase', fontSize: 11, borderBottom: '1px solid #334155' }}>
+                    {c.replace(/_/g, ' ')}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {value.map((row, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
+                  {cols.map((c) => (
+                    <td key={c} style={{ padding: '8px 10px', color: '#cbd5e1', verticalAlign: 'top' }}>
+                      <RenderValue value={row[c]} depth={depth + 1} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    return <ul style={{ margin: 0, paddingLeft: 20 }}>{value.map((v, i) => <li key={i} style={{ color: '#cbd5e1', marginBottom: 4 }}><RenderValue value={v} depth={depth + 1} /></li>)}</ul>;
+  }
+
+  if (typeof value === 'object') {
+    return (
+      <div style={{ paddingLeft: depth > 0 ? 12 : 0, borderLeft: depth > 0 ? '2px solid #334155' : 'none', marginTop: depth > 0 ? 4 : 0 }}>
+        {Object.entries(value).map(([k, v]) => (
+          <div key={k} style={{ marginBottom: 8 }}>
+            <strong style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}: </strong>
+            <RenderValue value={v} depth={depth + 1} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (typeof value === 'boolean') return <span style={{ color: value ? '#22c55e' : '#ef4444' }}>{value ? 'Yes' : 'No'}</span>;
+  return <span style={{ color: '#e2e8f0' }}>{String(value)}</span>;
 }
+
+// Exclude meta fields from the structured render
+const META_KEYS = new Set(['model', 'usage', 'timestamp', 'category']);
 
 export default function AIPage({ type, title }) {
   const [result, setResult] = useState(null);
@@ -56,6 +95,16 @@ export default function AIPage({ type, title }) {
     }
   };
 
+  // Strip meta keys and render only the AI analysis content
+  const renderStructuredResult = (data) => {
+    if (!data) return null;
+    const content = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (!META_KEYS.has(k)) content[k] = v;
+    }
+    return <RenderValue value={content} />;
+  };
+
   return (
     <div className="page">
       <div className="page-header">
@@ -67,7 +116,7 @@ export default function AIPage({ type, title }) {
           {loading ? (
             <><span className="btn-spinner" /> Analyzing...</>
           ) : (
-            <>🤖 Run AI Analysis</>
+            <>Run AI Analysis</>
           )}
         </button>
       </div>
@@ -91,8 +140,12 @@ export default function AIPage({ type, title }) {
           <div className="ai-result-header">
             <div className="ai-result-meta">
               <span className="ai-badge ai-badge-model">Model: {result.model || 'AI'}</span>
-              <span className="ai-badge ai-badge-category">{result.category?.replace(/_/g, ' ')}</span>
-              <span className="ai-badge ai-badge-time">{new Date(result.timestamp).toLocaleString()}</span>
+              {result.category && (
+                <span className="ai-badge ai-badge-category">{result.category.replace(/_/g, ' ')}</span>
+              )}
+              {result.timestamp && (
+                <span className="ai-badge ai-badge-time">{new Date(result.timestamp).toLocaleString()}</span>
+              )}
               {result.usage && (
                 <span className="ai-badge ai-badge-tokens">
                   {result.usage.total_tokens?.toLocaleString()} tokens
@@ -100,11 +153,12 @@ export default function AIPage({ type, title }) {
               )}
             </div>
           </div>
-          <div className="ai-result-body">
-            <div
-              className="ai-content"
-              dangerouslySetInnerHTML={{ __html: parseMarkdown(result.analysis) }}
-            />
+          <div className="ai-result-body" style={{ padding: 20 }}>
+            {result.raw_response ? (
+              <pre style={{ color: '#cbd5e1', whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw_response}</pre>
+            ) : (
+              renderStructuredResult(result)
+            )}
           </div>
         </div>
       )}
@@ -113,8 +167,8 @@ export default function AIPage({ type, title }) {
         <div className="ai-empty">
           <div className="ai-empty-icon">🤖</div>
           <h3>Ready to Analyze</h3>
-          <p>Click "Run AI Analysis" to generate insights from your fleet data using AI.</p>
-          <p className="ai-empty-note">Analysis uses real-time data from your database.</p>
+          <p>Click "Run AI Analysis" to generate structured insights from your fleet data.</p>
+          <p className="ai-empty-note">Analysis uses real-time data from your database. Results are persisted to AI History.</p>
         </div>
       )}
     </div>

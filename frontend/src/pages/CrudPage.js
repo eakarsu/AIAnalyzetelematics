@@ -164,6 +164,8 @@ function statusClass(status) {
 
 export default function CrudPage({ resource, title }) {
   const [items, setItems] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -174,11 +176,13 @@ export default function CrudPage({ resource, title }) {
 
   const config = fieldConfigs[resource] || { columns: ['id'], formFields: [] };
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (page = 1) => {
     setLoading(true);
     try {
-      const data = await api.getAll(resource);
-      setItems(data);
+      const envelope = await api.getPage(resource, page, 20);
+      // Backend returns { data: [...], pagination: {...} }
+      setItems(Array.isArray(envelope.data) ? envelope.data : []);
+      if (envelope.pagination) setPagination(envelope.pagination);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -187,12 +191,19 @@ export default function CrudPage({ resource, title }) {
   }, [resource]);
 
   useEffect(() => {
-    loadData();
+    setCurrentPage(1);
+    loadData(1);
     setSelected(null);
     setShowForm(false);
     setEditItem(null);
     setSearchTerm('');
   }, [resource, loadData]);
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    loadData(newPage);
+    setSelected(null);
+  };
 
   const handleRowClick = (item) => {
     setSelected(selected?.id === item.id ? null : item);
@@ -228,7 +239,7 @@ export default function CrudPage({ resource, title }) {
     try {
       await api.delete(resource, item.id);
       setSelected(null);
-      loadData();
+      loadData(currentPage);
     } catch (err) {
       setError(err.message);
     }
@@ -244,7 +255,7 @@ export default function CrudPage({ resource, title }) {
       }
       setShowForm(false);
       setEditItem(null);
-      loadData();
+      loadData(currentPage);
     } catch (err) {
       setError(err.message);
     }
@@ -268,7 +279,10 @@ export default function CrudPage({ resource, title }) {
       <div className="page-header">
         <div>
           <h1>{title}</h1>
-          <p className="page-subtitle">{filtered.length} records</p>
+          <p className="page-subtitle">
+            {pagination.total > 0 ? `${pagination.total} total records` : `${filtered.length} records`}
+            {pagination.totalPages > 1 && ` — page ${pagination.page} of ${pagination.totalPages}`}
+          </p>
         </div>
         <div className="page-actions">
           <input
@@ -278,6 +292,15 @@ export default function CrudPage({ resource, title }) {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {(resource === 'vehicles' || resource === 'drivers') && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => api.exportCSV(resource).catch((e) => setError(e.message))}
+              title={`Export all ${resource} as CSV`}
+            >
+              Export CSV
+            </button>
+          )}
           <button className="btn btn-primary" onClick={handleNew}>+ New {resource.slice(0, -1)}</button>
         </div>
       </div>
@@ -401,6 +424,47 @@ export default function CrudPage({ resource, title }) {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {pagination.totalPages > 1 && !loading && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1}
+          >« First</button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+          >‹ Prev</button>
+          {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+            const startPage = Math.max(1, Math.min(currentPage - 2, pagination.totalPages - 4));
+            const p = startPage + i;
+            return p <= pagination.totalPages ? (
+              <button
+                key={p}
+                className={`btn ${p === currentPage ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => handlePageChange(p)}
+                style={{ minWidth: 36 }}
+              >{p}</button>
+            ) : null;
+          })}
+          <button
+            className="btn btn-secondary"
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= pagination.totalPages}
+          >Next ›</button>
+          <button
+            className="btn btn-secondary"
+            onClick={() => handlePageChange(pagination.totalPages)}
+            disabled={currentPage >= pagination.totalPages}
+          >Last »</button>
+          <span style={{ color: '#94a3b8', fontSize: 13, marginLeft: 8 }}>
+            {pagination.total} total records
+          </span>
         </div>
       )}
     </div>

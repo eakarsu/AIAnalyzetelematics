@@ -9,6 +9,7 @@ import AIHistoryPage from './pages/AIHistoryPage';
 import DriverLeaderboardPage from './pages/DriverLeaderboardPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import LiveMapPage from './pages/LiveMapPage';
+import CustomViewsPage from './pages/CustomViewsPage';
 import Layout from './components/Layout';
 import './App.css';
 
@@ -176,6 +177,7 @@ export default function App() {
             />
           } />
           <Route path="/ai/history" element={<AIHistoryPage />} />
+          <Route path="/custom-views" element={<CustomViewsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>

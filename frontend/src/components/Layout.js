@@ -43,6 +43,8 @@ const menuItems = [
   { path: '/ai/driver-burnout', label: 'Driver Burnout', icon: '🔥' },
   { path: '/ai/cost-per-mile-report', label: 'Cost/Mile Report', icon: '📐' },
   { path: '/ai/history', label: 'AI History', icon: '🕘' },
+  { type: 'divider', label: 'Fleet Views' },
+  { path: '/custom-views', label: 'Fleet Views', icon: '🧩' },
 ];
 
 export default function Layout({ user, onLogout, children }) {

@@ -102,3 +102,6 @@ app.use('/api/gap-customer-proof-delivery-photos-signatures', require('./routes/
 app.use('/api/gap-notifications-subsystem', require('./routes/gap_notifications_subsystem'));
 app.use('/api/gap-outbound-webhooks', require('./routes/gap_outbound_webhooks'));
 app.use('/api/gap-mobile-driver-app', require('./routes/gap_mobile_driver_app'));
+
+// Custom Views (Telematics) - 2 viz + 2 non-viz
+app.use('/api/custom-views', require('./routes/customViews'));

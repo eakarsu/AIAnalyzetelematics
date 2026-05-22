@@ -10,8 +10,12 @@ import DriverLeaderboardPage from './pages/DriverLeaderboardPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import LiveMapPage from './pages/LiveMapPage';
 import CustomViewsPage from './pages/CustomViewsPage';
+import EldHoursViolationMonitor from './pages/EldHoursViolationMonitor';
 import Layout from './components/Layout';
 import './App.css';
+
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -44,6 +48,9 @@ export default function App() {
     <BrowserRouter>
       <Layout user={user} onLogout={handleLogout}>
         <Routes>
+        <Route path="/codex/custom-viz" element={<CodexCustomVizFeature />} />
+        <Route path="/codex/operations" element={<CodexOperationsFeature />} />
+
           <Route path="/" element={<Dashboard />} />
           <Route path="/map" element={<LiveMapPage />} />
           <Route path="/vehicles" element={<CrudPage resource="vehicles" title="Vehicle Management" />} />
@@ -178,6 +185,7 @@ export default function App() {
           } />
           <Route path="/ai/history" element={<AIHistoryPage />} />
           <Route path="/custom-views" element={<CustomViewsPage />} />
+          <Route path="/eld-hours-violation-monitor" element={<EldHoursViolationMonitor />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Layout>

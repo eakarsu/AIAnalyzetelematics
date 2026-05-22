@@ -62,7 +62,14 @@ app.use('/api/geofences', require('./routes/geofences'));
 app.use('/api/insights', require('./routes/insights'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/analytics', require('./routes/analytics'));
-app.use('/api/eld-hours-violation-monitor', require('./routes/eldHoursViolationMonitor'));
+
+// Serve frontend build for SPA (when no separate dev server)
+const fs = require('fs');
+const FRONT_BUILD = path.resolve(__dirname, '../frontend/build');
+if (fs.existsSync(FRONT_BUILD)) {
+  app.use(express.static(FRONT_BUILD));
+  app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(FRONT_BUILD, 'index.html')));
+}
 
 // Health check — verifies DB connectivity
 app.get('/api/health', async (req, res) => {

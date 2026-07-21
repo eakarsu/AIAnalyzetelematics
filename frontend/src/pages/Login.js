@@ -23,11 +23,6 @@ export default function Login({ onLogin }) {
     }
   };
 
-  const populateCredentials = () => {
-    setEmail('admin@fleetiq.com');
-    setPassword('password123');
-  };
-
   return (
     <div className="login-page">
       <div className="login-bg">
@@ -54,13 +49,7 @@ export default function Login({ onLogin }) {
             <button type="submit" className="login-btn" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
-            <button type="button" className="demo-btn" onClick={populateCredentials}>
-              Fill Demo Credentials
-            </button>
           </form>
-          <div className="login-footer">
-            <p>Demo: admin@fleetiq.com / password123</p>
-          </div>
         </div>
       </div>
     </div>

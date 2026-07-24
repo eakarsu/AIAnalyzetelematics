@@ -48,6 +48,7 @@ app.use(generalLimiter);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/runtime-ai', require('./routes/runtimeAi'));
 app.use('/api/vehicles', require('./routes/vehicles'));
 app.use('/api/drivers', require('./routes/drivers'));
 app.use('/api/routes', require('./routes/routes'));

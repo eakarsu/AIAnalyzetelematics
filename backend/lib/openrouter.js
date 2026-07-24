@@ -113,8 +113,6 @@ async function ensureAIResultsTable() {
     )
   `);
 }
-ensureAIResultsTable().catch((e) => console.error('ensureAIResultsTable failed:', e.message));
-
 /**
  * Persist an AI result to the ai_results table.
  * @param {number|null} userId

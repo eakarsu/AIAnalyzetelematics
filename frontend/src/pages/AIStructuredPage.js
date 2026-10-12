@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import AIFieldPresets, { completeExample } from './AIFieldPresets';
+import useCancelableAI from './useCancelableAI';
+import ReadableAIReport from "./AIResultView";
+import React, { useState, useEffect } from 'react';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -10,158 +13,43 @@ function getHeaders() {
   };
 }
 
-function RenderValue({ value }) {
-  if (value === null || value === undefined) return <span style={{ color: '#94a3b8' }}>—</span>;
 
-  if (Array.isArray(value)) {
-    if (value.length === 0) return <span style={{ color: '#94a3b8' }}>(empty)</span>;
-    if (typeof value[0] === 'object') {
-      const cols = Object.keys(value[0]);
-      return (
-        <table style={tbl}>
-          <thead><tr>{cols.map((c) => <th key={c} style={th}>{c.replace(/_/g, ' ')}</th>)}</tr></thead>
-          <tbody>
-            {value.map((row, i) => (
-              <tr key={i}>{cols.map((c) => <td key={c} style={td}><RenderValue value={row[c]} /></td>)}</tr>
-            ))}
-          </tbody>
-        </table>
-      );
-    }
-    return <ul style={{ margin: 0 }}>{value.map((v, i) => <li key={i}><RenderValue value={v} /></li>)}</ul>;
-  }
-
-  if (typeof value === 'object') {
-    return (
-      <div style={{ paddingLeft: 12, borderLeft: '2px solid #334155' }}>
-        {Object.entries(value).map(([k, v]) => (
-          <div key={k} style={{ marginBottom: 4 }}>
-            <strong style={{ color: '#94a3b8', fontSize: 12, textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}: </strong>
-            <RenderValue value={v} />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (typeof value === 'boolean') return <span style={{ color: value ? '#22c55e' : '#ef4444' }}>{value ? 'Yes' : 'No'}</span>;
-  return <span>{String(value)}</span>;
-}
 
 export default function AIStructuredPage({ endpoint, title, description, body = null, formFields = null }) {
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [form, setForm] = useState(() => {
-    const init = {};
-    if (formFields) formFields.forEach((f) => { init[f.name] = f.default || ''; });
-    return init;
-  });
-
-  const run = async (e) => {
-    e?.preventDefault?.();
-    setLoading(true); setError(''); setResult(null);
-    try {
-      const reqBody = body || (formFields ? Object.fromEntries(formFields.map((f) => {
-        const v = form[f.name];
-        if (f.type === 'number') return [f.name, Number(v)];
-        if (f.type === 'json') {
-          try { return [f.name, JSON.parse(v)]; } catch { return [f.name, v]; }
-        }
-        return [f.name, v];
-      })) : {});
-
-      const res = await fetch(`${API_BASE}/ai/${endpoint}`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(reqBody),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || (data.errors && JSON.stringify(data.errors)) || 'Request failed');
-      setResult(data);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
+  const [form, setForm] = useState(() => Object.fromEntries((formFields || []).map((field) => [field.name, field.default ?? ''])));
+  const [references, setReferences] = useState({});
+  const [referenceError, setReferenceError] = useState('');
+  const aiRequest = useCancelableAI();
+  const fields = (formFields || []).map((field) => field.name === 'vehicle_id' || field.name === 'driver_id' ? { ...field, type: 'select', requiresExistingRecord: true, options: (references[field.name] || []).map((row) => ({ value: String(row.id), label: row.name || row.license_plate || [row.make, row.model].filter(Boolean).join(' ') || String(row.id) })) } : field);
+  useEffect(() => {
+    let active = true; const controller = new AbortController();
+    aiRequest.cancel(); aiRequest.setResult(null); aiRequest.setError(null);
+    setForm(Object.fromEntries((formFields || []).map((field) => [field.name, field.default ?? '']))); setReferences({}); setReferenceError('');
+    for (const field of formFields || []) {
+      const resource = field.name === 'vehicle_id' ? 'vehicles' : field.name === 'driver_id' ? 'drivers' : null;
+      if (!resource) continue;
+      fetch(API_BASE + '/' + resource + '?limit=100', { headers: getHeaders(), signal: controller.signal }).then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error('Saved records unavailable'); return data.data || data.items || data; }).then((rows) => { if (active) setReferences((previous) => ({ ...previous, [field.name]: Array.isArray(rows) ? rows : [] })); }).catch((error) => { if (active && error.name !== 'AbortError') setReferenceError('Saved record references could not be loaded. Check your connection.'); });
+    }
+    return () => { active = false; controller.abort(); };
+    // eslint-disable-next-line
+  }, [endpoint]);
+  const run = async (event) => {
+    event?.preventDefault?.();
+    return aiRequest.run(async (options) => {
+      const payload = body || Object.fromEntries((formFields || []).map((field) => {
+        const value = form[field.name];
+        if (field.required && (value === undefined || value === '')) throw new Error(field.label + ' is required.');
+        if (field.type === 'number') return [field.name, value === '' || value === undefined ? undefined : Number(value)];
+        if (field.type === 'json' && value) { try { return [field.name, typeof value === 'string' ? JSON.parse(value) : value]; } catch (_) { throw new Error(field.label + ': enter valid structured data.'); } }
+        return [field.name, value];
+      }));
+      const response = await fetch(API_BASE + '/ai/' + endpoint, { ...options, method: 'POST', headers: getHeaders(), body: JSON.stringify(payload) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || data.errors?.map?.((item) => item.msg).join(', ') || 'AI request failed');
+      return data;
+    });
   };
-
-  return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>{title}</h1>
-          <p className="page-subtitle">{description}</p>
-        </div>
-        {!formFields && (
-          <button className="btn btn-ai" onClick={run} disabled={loading}>
-            {loading ? <><span className="btn-spinner" /> Running...</> : <>🤖 Run Analysis</>}
-          </button>
-        )}
-      </div>
-
-      {formFields && (
-        <form onSubmit={run} style={{ display: 'grid', gap: 12, maxWidth: 700, marginBottom: 20, padding: 16, background: '#1e293b', borderRadius: 8 }}>
-          {formFields.map((f) => (
-            <div key={f.name}>
-              <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, marginBottom: 4 }}>{f.label}{f.required && ' *'}</label>
-              {f.type === 'textarea' || f.type === 'json' ? (
-                <textarea
-                  value={form[f.name] || ''}
-                  onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
-                  required={f.required}
-                  placeholder={f.placeholder}
-                  style={{ ...inp, minHeight: 80, resize: 'vertical', fontFamily: f.type === 'json' ? 'monospace' : 'inherit' }}
-                />
-              ) : (
-                <input
-                  type={f.type === 'number' ? 'number' : 'text'}
-                  value={form[f.name] || ''}
-                  onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
-                  required={f.required}
-                  placeholder={f.placeholder}
-                  style={inp}
-                />
-              )}
-            </div>
-          ))}
-          <button type="submit" className="btn btn-ai" disabled={loading}>
-            {loading ? <><span className="btn-spinner" /> Running...</> : <>🤖 Run Analysis</>}
-          </button>
-        </form>
-      )}
-
-      {error && <div className="error-banner">{error}<button onClick={() => setError('')}>x</button></div>}
-
-      {loading && (
-        <div className="ai-loading">
-          <div className="ai-loading-animation">
-            <div className="ai-pulse" />
-            <div className="ai-pulse delay-1" />
-            <div className="ai-pulse delay-2" />
-          </div>
-          <h3>AI is analyzing your fleet data...</h3>
-        </div>
-      )}
-
-      {result && (
-        <div className="ai-result">
-          <div className="ai-result-body" style={{ padding: 20 }}>
-            {result.raw_response ? (
-              <pre style={{ color: '#cbd5e1', whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw_response}</pre>
-            ) : (
-              <RenderValue value={result} />
-            )}
-          </div>
-        </div>
-      )}
-
-      {!result && !loading && !formFields && (
-        <div className="ai-empty">
-          <div className="ai-empty-icon">🤖</div>
-          <h3>Ready to Analyze</h3>
-          <p>{description}</p>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="page sr-ai-workspace"><div className="page-header"><div><h1>{title}</h1><p className="page-subtitle">{description}</p></div>{!formFields && <div className="sr-actions"><button type="button" className="btn btn-ai" onClick={run} disabled={aiRequest.loading}>{aiRequest.loading ? 'Preparing report…' : 'Generate with OpenRouter'}</button>{aiRequest.loading && <button type="button" className="btn" onClick={aiRequest.cancel}>Cancel</button>}</div>}</div>{formFields && <form onSubmit={run} className="card" style={{ padding: 20, marginBottom: 20 }}><AIFieldPresets fields={fields} context={title} disabled={aiRequest.loading} onFill={(sample, index) => { setForm(completeExample(fields, sample, index, title, form)); aiRequest.setResult(null); }} />{referenceError && <p className="sr-notice" role="status">{referenceError}</p>}<div className="form-grid">{fields.map((field) => <div className="form-group" key={field.name}><label htmlFor={'structured-' + field.name}>{field.label}<span className="muted">{field.required ? ' · Required' : ' · Optional'}</span></label>{field.type === 'select' ? <select id={'structured-' + field.name} value={form[field.name] ?? ''} required={field.required} onChange={(event) => setForm((current) => ({ ...current, [field.name]: event.target.value }))}><option value="">Select a saved record…</option>{(field.options || []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.type === 'textarea' || field.type === 'json' ? <textarea id={'structured-' + field.name} rows={5} value={form[field.name] ?? ''} required={field.required} placeholder={field.placeholder} onChange={(event) => setForm((current) => ({ ...current, [field.name]: event.target.value }))} /> : <input id={'structured-' + field.name} type={field.type || 'text'} value={form[field.name] ?? ''} required={field.required} placeholder={field.placeholder} min={field.min} max={field.max} onChange={(event) => setForm((current) => ({ ...current, [field.name]: event.target.value }))} />}</div>)}</div><div className="sr-actions"><button type="submit" className="btn btn-ai" disabled={aiRequest.loading}>{aiRequest.loading ? 'Preparing report…' : 'Generate with OpenRouter'}</button>{aiRequest.loading && <button type="button" className="btn" onClick={aiRequest.cancel}>Cancel</button>}</div></form>}{aiRequest.notice && <p className="sr-notice" role="status">{aiRequest.notice}</p>}<ReadableAIReport result={aiRequest.result} loading={aiRequest.loading} error={aiRequest.error} title={title} />{!formFields && !aiRequest.result && !aiRequest.loading && <div className="ai-empty"><h3>Ready to analyze saved fleet records</h3><p>{description}</p></div>}</div>;
 }
 
 const inp = { width: '100%', padding: 10, borderRadius: 6, border: '1px solid #334155', background: '#0f172a', color: '#fff', fontSize: 14, boxSizing: 'border-box' };

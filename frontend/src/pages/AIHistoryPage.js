@@ -1,3 +1,4 @@
+import ReadableAIReport from "./AIResultView";
 import React, { useEffect, useState, useCallback } from 'react';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -81,7 +82,7 @@ export default function AIHistoryPage() {
             <h4 style={{ color: '#94a3b8' }}>Input</h4>
             <pre style={{ color: '#cbd5e1', fontSize: 12, whiteSpace: 'pre-wrap' }}>{JSON.stringify(selected.input_data, null, 2)}</pre>
             <h4 style={{ color: '#94a3b8' }}>Result</h4>
-            <pre style={{ color: '#cbd5e1', fontSize: 12, whiteSpace: 'pre-wrap' }}>{JSON.stringify(selected.result, null, 2)}</pre>
+            <ReadableAIReport result={selected.result} />
             <button className="btn" onClick={() => setSelected(null)}>Close</button>
           </div>
         </div>

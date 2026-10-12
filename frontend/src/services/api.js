@@ -58,22 +58,22 @@ export const api = {
   tripUtilization: () => request('/trips/stats/fleet-utilization'),
 
   // AI
-  aiOptimizeRoute: () => request('/ai/optimize-route', { method: 'POST' }),
-  aiAnalyzeFuel: () => request('/ai/analyze-fuel', { method: 'POST' }),
-  aiAnalyzeDrivers: () => request('/ai/analyze-drivers', { method: 'POST' }),
-  aiPredictMaintenance: () => request('/ai/predict-maintenance', { method: 'POST' }),
-  aiFleetInsights: () => request('/ai/fleet-insights', { method: 'POST' }),
+  aiOptimizeRoute: (options = {}) => request('/ai/optimize-route', { ...options, method: 'POST' }),
+  aiAnalyzeFuel: (options = {}) => request('/ai/analyze-fuel', { ...options, method: 'POST' }),
+  aiAnalyzeDrivers: (options = {}) => request('/ai/analyze-drivers', { ...options, method: 'POST' }),
+  aiPredictMaintenance: (options = {}) => request('/ai/predict-maintenance', { ...options, method: 'POST' }),
+  aiFleetInsights: (options = {}) => request('/ai/fleet-insights', { ...options, method: 'POST' }),
   dashboardStats: () => request('/ai/dashboard-stats'),
   aiHistory: (page = 1, limit = 20) => request(`/ai/history?page=${page}&limit=${limit}`),
 
   // New AI features
-  aiFuelFraud: () => request('/ai/fuel-fraud', { method: 'POST' }),
-  aiDriverBurnout: (driver_id) => request('/ai/driver-burnout', {
+  aiFuelFraud: (options = {}) => request('/ai/fuel-fraud', { ...options, method: 'POST' }),
+  aiDriverBurnout: (driver_id, options = {}) => request('/ai/driver-burnout', { ...options,
     method: 'POST',
     body: JSON.stringify(driver_id ? { driver_id } : {}),
   }),
-  aiCostPerMileReport: () => request('/ai/cost-per-mile-report', { method: 'POST' }),
-  aiFleetSummaryReport: () => request('/ai/fleet-summary-report', { method: 'POST' }),
+  aiCostPerMileReport: (options = {}) => request('/ai/cost-per-mile-report', { ...options, method: 'POST' }),
+  aiFleetSummaryReport: (options = {}) => request('/ai/fleet-summary-report', { ...options, method: 'POST' }),
 
   // Export CSV (returns raw fetch so caller can trigger download)
   exportCSV: async (resource) => {

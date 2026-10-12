@@ -1,3 +1,5 @@
+import RecordDialog from './RecordDialog';
+import { AIResultValue } from './AIResultView';
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
 
@@ -364,13 +366,13 @@ export default function CrudPage({ resource, title }) {
       )}
 
       {selected && (
-        <div className="detail-panel">
+        <RecordDialog title={title} onClose={() => setSelected(null)}><div className="detail-panel">
           <div className="detail-header">
             <h3>Record Details</h3>
             <div className="detail-actions">
               <button className="btn btn-edit" onClick={() => handleEdit(selected)}>Edit</button>
               <button className="btn btn-danger" onClick={() => handleDelete(selected)}>Delete</button>
-              <button className="btn btn-secondary" onClick={() => setSelected(null)}>Close</button>
+              <button className="btn btn-secondary" onClick={() => setSelected(null)}>Cancel</button>
             </div>
           </div>
           <div className="detail-grid">
@@ -387,7 +389,7 @@ export default function CrudPage({ resource, title }) {
               </div>
             ))}
           </div>
-        </div>
+        </div></RecordDialog>
       )}
 
       {loading ? (
@@ -408,7 +410,7 @@ export default function CrudPage({ resource, title }) {
                   key={item.id}
                   className={`table-row ${selected?.id === item.id ? 'selected' : ''}`}
                   onClick={() => handleRowClick(item)}
-                >
+                 tabIndex={0} onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) { event.preventDefault(); (() => handleRowClick(item))(event); } }}>
                   {config.columns.map((col) => (
                     <td key={col}>
                       {col === 'severity' ? <span className={`badge ${severityClass(item[col])}`}>{item[col]}</span> :

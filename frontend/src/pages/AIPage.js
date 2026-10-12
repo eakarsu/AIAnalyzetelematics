@@ -1,3 +1,5 @@
+import AIResultView from './AIResultView';
+import useCancelableAI from './useCancelableAI';
 import React, { useState } from 'react';
 import { api } from '../services/api';
 
@@ -76,24 +78,12 @@ function RenderValue({ value, depth = 0 }) {
 const META_KEYS = new Set(['model', 'usage', 'timestamp', 'category']);
 
 export default function AIPage({ type, title }) {
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const aiRequest = useCancelableAI();
+  const { result, setResult: setResult, loading, error, setError: setError } = aiRequest;
 
-  const runAnalysis = async () => {
-    setLoading(true);
-    setError('');
-    setResult(null);
-    try {
-      const fn = aiEndpoints[type];
-      const data = await fn();
-      setResult(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+
+
+  const runAnalysis = async () => aiRequest.run((options) => aiEndpoints[type](options));
 
   // Strip meta keys and render only the AI analysis content
   const renderStructuredResult = (data) => {
@@ -119,6 +109,7 @@ export default function AIPage({ type, title }) {
             <>Run AI Analysis</>
           )}
         </button>
+        {loading && <button type="button" className="btn btn-secondary" onClick={aiRequest.cancel}>Cancel</button>}
       </div>
 
       {error && <div className="error-banner">{error}<button onClick={() => setError('')}>x</button></div>}
@@ -135,33 +126,7 @@ export default function AIPage({ type, title }) {
         </div>
       )}
 
-      {result && (
-        <div className="ai-result">
-          <div className="ai-result-header">
-            <div className="ai-result-meta">
-              <span className="ai-badge ai-badge-model">Model: {result.model || 'AI'}</span>
-              {result.category && (
-                <span className="ai-badge ai-badge-category">{result.category.replace(/_/g, ' ')}</span>
-              )}
-              {result.timestamp && (
-                <span className="ai-badge ai-badge-time">{new Date(result.timestamp).toLocaleString()}</span>
-              )}
-              {result.usage && (
-                <span className="ai-badge ai-badge-tokens">
-                  {result.usage.total_tokens?.toLocaleString()} tokens
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="ai-result-body" style={{ padding: 20 }}>
-            {result.raw_response ? (
-              <pre style={{ color: '#cbd5e1', whiteSpace: 'pre-wrap', fontSize: 13 }}>{result.raw_response}</pre>
-            ) : (
-              renderStructuredResult(result)
-            )}
-          </div>
-        </div>
-      )}
+      <AIResultView result={result} loading={loading} error={error} title={title} />
 
       {!result && !loading && (
         <div className="ai-empty">
